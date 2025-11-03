@@ -1,2 +1,26 @@
 .DS_Store
 HurricaneReplay/.DS_Store
+# Xcode build artifacts
+DerivedData/
+build/
+
+# Xcode user data
+*.xcuserstate
+*.xcscmblueprint
+*.xccheckout
+*.xcworkspace/xcuserdata/
+*.xcuserdatad/
+
+# Swift Package Manager
+.swiftpm/
+.build/
+
+# CocoaPods
+Pods/
+# Carthage
+Carthage/Build/
+
+# RealityKit and Metal assets
+*.metallib
+*.usdz
+
