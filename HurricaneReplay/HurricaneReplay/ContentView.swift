@@ -74,7 +74,7 @@ struct ContentView: View {
             .disabled(isBusy)
         }
         .padding()
-        .frame(minWidth: 680, minHeight: 400)
+        .frame(minWidth: 680, minHeight: 420)
         .onChange(of: scenePhase) { _, newPhase in
             if newPhase != .active { isImmersiveOpen = false }
         }

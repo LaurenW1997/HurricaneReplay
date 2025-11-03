@@ -28,7 +28,6 @@ final class StormData: ObservableObject {
         "new_orleans_french_quarter": 7.0
     ]
 
-    // 世界北向校准
     @Published var worldNorthYawDeg: Double = 0
 
     var times: [TimeInterval] { bundle.time_utc.map { TimeInterval($0) } }
