@@ -1,33 +1,17 @@
-//
-//  HurricaneReplayApp.swift
-//  HurricaneReplay
-//
-//  Created by COM on 11/3/25.
-//
-
 import SwiftUI
 
 @main
 struct HurricaneReplayApp: App {
-
-    @State private var appModel = AppModel()
+    @StateObject private var storm = StormData.loadFromBundle()
 
     var body: some Scene {
-        WindowGroup {
+        WindowGroup(id: "main") {
             ContentView()
-                .environment(appModel)
+                .environmentObject(storm)
         }
-
-        ImmersiveSpace(id: appModel.immersiveSpaceID) {
+        ImmersiveSpace(id: "immersive") {
             ImmersiveView()
-                .environment(appModel)
-                .onAppear {
-                    appModel.immersiveSpaceState = .open
-                }
-                .onDisappear {
-                    appModel.immersiveSpaceState = .closed
-                }
+                .environmentObject(storm)
         }
-        .immersionStyle(selection: .constant(.full), in: .full)
     }
 }
