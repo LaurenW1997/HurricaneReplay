@@ -1,94 +1,86 @@
 import SwiftUI
 import RealityKit
-
-struct LastIndexComponent: Component { var value: Int = -1 }
+import QuartzCore
+import simd
 
 struct ImmersiveView: View {
     @EnvironmentObject var storm: StormData
 
     @State private var rootAnchor: AnchorEntity?
-    @State private var water: ModelEntity?
-    @State private var rain: RainSystem?
-    @State private var fog: FogSystem?
+    @State private var occluder: SceneMeshOcclusion?
+    @State private var waterField: WaterField?
     @State private var splash: SplashSystem?
+    @State private var rain: RainSystem?
+
+    final class Runtime {
+        var lastTime: CFAbsoluteTime = CFAbsoluteTimeGetCurrent()
+    }
+    @State private var rt = Runtime()
 
     var body: some View {
         RealityView { content in
+            // 根锚点
             let anchor = AnchorEntity(world: .zero)
             content.add(anchor)
             self.rootAnchor = anchor
 
-            // 水面: SimpleMaterial 半透明（仅用 alpha，不设置 blending）
-            let water = WaterSurface.make(width: 4, depth: 4)
-            water.position = [0, 0.01, 0]
-            water.components.set(LastIndexComponent(value: -1))
-            anchor.addChild(water)
-            self.water = water
+            // 平面遮挡与碰撞（先启动，尽快拿到 floorY）
+            let occ = SceneMeshOcclusion(parent: anchor)
+            occ.start()
+            self.occluder = occ
 
-            // 水花
-            let splash = SplashSystem(parent: anchor, floorY: 0.0)
-            self.splash = splash
+            // 水面（多 tile 平滑）
+            let wf = WaterField(parent: anchor, fieldSize: 8, tileSize: 0.35)
+            self.waterField = wf
 
-            // 雨
-            let rain = RainSystem(parent: anchor,
-                                  area: SIMD2<Float>(6, 6),
-                                  topY: 3.0,
-                                  floorY: 0.0) { hitX, hitZ in
-                splash.spawn(at: SIMD3<Float>(hitX, 0.02, hitZ))
-            }
-            self.rain = rain
+            // 高斯溅斑
+            let sp = SplashSystem(parent: anchor)
+            self.splash = sp
 
-            // 雾
-            let fog = FogSystem(parent: anchor)
-            self.fog = fog
+            // 雨条
+            let rainSys = RainSystem(parent: anchor)
+            self.rain = rainSys
+
+            rt.lastTime = CFAbsoluteTimeGetCurrent()
+
         } update: { _ in
-            guard let water = self.water,
-                  let rain = self.rain,
-                  let fog = self.fog else { return }
+            let now = CFAbsoluteTimeGetCurrent()
+            let dt = Float(max(0, now - rt.lastTime))
+            rt.lastTime = now
 
-            rain.tick()
-            fog.tick()
-            splash?.tick()
+            guard let anchor = self.rootAnchor,
+                  let wf = self.waterField,
+                  let occ = self.occluder else { return }
 
-            // 仅索引变化时刷新数据驱动
-            var c = water.components[LastIndexComponent.self] ?? LastIndexComponent(value: -1)
+            // 基准地面高度
+            let yFloor: Float = occ.floorY ?? 0.0
+
+            // 目标水深（米）
             let i = storm.timeIndex
-            if i != c.value {
-                let z = storm.zetaForSelectedSite(at: i)
-                let zSafe = z.isFinite ? z : 0.0
-                let clamped = max(-5.0, min(5.0, zSafe))
-                water.position.y = Float(max(0.01, clamped))
-                WaterSurface.updateLook(for: water, wetness: Float(min(1, abs(clamped) / 1.5)))
+            var z = storm.zetaForSelectedSite(at: i)
+            if !z.isFinite { z = 0 }
+            let depthMeters = max(0, min(5, z))
 
+            // 把水面平滑到 worldY（地面上抬起 depth）
+            wf.setTarget(height: Float(yFloor) + Float(depthMeters) + 0.01)
+            wf.tick(dt: dt)
+
+            // 推进溅斑寿命
+            self.splash?.tick(dt: dt)
+
+            // 配置并推进雨条（含命中地面的触发回调）
+            if let rain = self.rain {
                 let s = storm.sampleAtIndex(i)
-                rain.configure(rainMMPerHour: max(0.0, s.rain),
-                               windSpeed: max(0.0, s.windSpeed),
-                               windDirFromDeg: s.windDirDeg,
-                               worldYawDeg: storm.worldNorthYawDeg)
-                fog.setIntensity(rainMMPerHour: s.rain)
-
-                c.value = i
-                water.components.set(c)
+                rain.configure(
+                    rainMMPerHour: max(0.0, s.rain),
+                    windSpeed: max(0.0, s.windSpeed),
+                    windDirFromDeg: s.windDirDeg,
+                    worldYawDeg: storm.worldNorthYawDeg
+                )
+                rain.tick(dt: dt, floorY: yFloor, scene: anchor.scene) { p in
+                    self.splash?.spawn(at: p)
+                }
             }
         }
-    }
-}
-
-// 简化版水面材质，兼容旧 SDK：只用 SimpleMaterial 的颜色 alpha
-enum WaterSurface {
-    static func make(width: Float, depth: Float) -> ModelEntity {
-        let mesh = MeshResource.generatePlane(width: width, depth: depth)
-        var mat = SimpleMaterial()
-        mat.color = .init(tint: .init(red: 0.2, green: 0.35, blue: 0.9, alpha: 0.42))
-        let e = ModelEntity(mesh: mesh, materials: [mat])
-        return e
-    }
-
-    static func updateLook(for entity: ModelEntity, wetness: Float) {
-        guard var m = entity.model?.materials.first as? SimpleMaterial else { return }
-        // 用 alpha 小幅体现湿润感
-        let a = CGFloat(min(0.7, 0.42 + 0.10 * wetness))
-        m.color = .init(tint: .init(red: 0.2, green: 0.35, blue: 0.9, alpha: a))
-        entity.model?.materials = [m]
     }
 }

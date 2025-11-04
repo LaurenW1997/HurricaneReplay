@@ -2,6 +2,14 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
+	<key>NSEnterpriseMCAMUsageDescription</key>
+	<string>Used for camera-based sensing in managed environments.</string>
+	<key>NSHandsTrackingUsageDescription</key>
+	<string>Used for hand input in the immersive experience.</string>
+	<key>NSWorldSensingUsageDescription</key>
+	<string>Used to reconstruct the 3D mesh of the room, thereby enabling occlusion and ground-level rendering.</string>
+	<key>Privacy - Spatial Tracking Usage Description</key>
+	<string>Used to locate and reconstruct the environment within a room so that water and furniture can interact realistically.</string>
 	<key>UIApplicationSceneManifest</key>
 	<dict>
 		<key>UIApplicationPreferredDefaultSceneSessionRole</key>
